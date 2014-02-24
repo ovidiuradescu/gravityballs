@@ -1,0 +1,412 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Title of the document</title>
+<script src="jquery-1.3.1.js"></script>
+<style>
+#log{ padding: 20px; background: #fefefe;}
+#c{margin: 0 auto;}
+.CanvasDiv{
+	margin-right: 200px;
+}
+.InfoDiv{
+	width: 200px;
+	float: right;
+}
+.clear{
+	clear: both;
+}
+</style>
+</head>
+
+<body>
+<div>
+	<div class="InfoDiv">
+		<div><span>Generated Bubbles </span><span id="AllBoubbles"></span></div>
+		<div><span>Active Bubbles </span><span id="ActiveBoubbles"></span></div>
+		<div><span>Next vortex in </span><span id="NextVortex"></span></div>
+	</div>
+	<div class="CanvasDiv">
+		<canvas width="600" height="600" id="c" ></canvas>
+		<a href="javascript: drawCanvas()">draw</a>
+		<a href="javascript: resetCanvas()">erase</a>
+	</div>
+	
+	<div class="clear"></div>
+</div>
+ <div id="noOfCirclesDbg"></div>
+ <div id="log"></div>
+ <div id="area"></div>
+ <div id="vordbg"></div>
+ 
+
+
+ 
+<script type="text/javascript">
+
+var TO_RADIANS = Math.PI/180; 
+
+var circles = [];
+var step = 1000 / 60;
+var timer = 0;
+var blackLife = 12000;
+var vortexWait = 15000;
+var stop = false;
+var refreshIntervalId;
+var lastGeneratedOn = timer;
+var spawnInterval = 500;
+var generatedBoubbles = 0;
+var spawnBlackBalls = false;
+
+var opacity = 1;
+
+var vorX = 300;
+var vorY = 200;
+var vorSX = getRandomSpeed();
+var vorSY = getRandomSpeed();
+var vorA = 4;
+var vortex = new VortexCls(vorX, vorY, vorSX, vorSY, vorA, timer, false, 0);
+
+var vortex_image = new Image();
+vortex_image.src = 'images/vortex.png';
+
+var greenBall = new Image();
+greenBall.src = 'images/ball_green.png';
+
+var Ball = new Image();
+Ball.src = 'images/ball.png';
+
+var CelestianBody = function(x, y, sx, sy, mass, radius){
+	this.x = x;
+	this.y = y;
+	this.sx = sx;
+	this.sy = sy;
+	this.m = mass;
+	this.r = radius;
+};
+
+var sun = new CelestianBody(300, 300, 0, 0, 1000, 20);
+var earth = new CelestianBody(100, 300, 0, 0, 10, 10);
+
+function drawCanvas() {
+	circles.push(sun);
+	circles.push(earth);
+	
+	refreshIntervalId = self.setInterval(function(){animate()},step);
+}
+function resetCanvas() {
+	var c_canvas = document.getElementById("c");
+	c_canvas.width = c_canvas.width;
+}
+function clickCanvas() {
+	alert();
+}
+$('#c').bind('click',function(e) { 
+	var p = $("#c");
+	var offset = p.offset();
+	var mouseX = e.pageX - offset.left;
+	var mouseY = e.pageY - offset.top;
+	
+	handleClick(mouseX, mouseY);
+
+	$("#log").text("mouseX: " + mouseX + ", mouseY: " + mouseY);
+});
+
+	
+function drawCircles() {
+	timer = timer + step;
+	var c_canvas = document.getElementById("c");	
+	var context = c_canvas.getContext("2d");
+	context.clearRect(0, 0, c_canvas.width, c_canvas.height);
+	
+	var l = circles.length;
+	
+	var newCicles = new Array();
+	
+	var splice = new Array();
+	
+	var otherCicles = new Array();
+	
+	var totalArea = 0;
+	
+	for (var i = 0; i< l; i++){
+		context.beginPath();
+		context.arc(circles[i].cx + circles[i].sx, circles[i].cy + circles[i].sy, circles[i].r, 0, 2 * Math.PI, false);
+		context.fillStyle = circles[i].color;
+		context.fill();
+		
+	
+		context.drawImage(Ball, circles[i].cx + circles[i].sx - circles[i].r, circles[i].cy + circles[i].sy - circles[i].r,circles[i].r * 2, circles[i].r * 2);
+		
+		/*
+		
+		var crtC = circles[i];
+		var crtArea = getCircleArea(crtC);
+		totalArea += crtArea;
+
+		if(crtC.cx + crtC.sx + crtC.r >= c_canvas.width || crtC.cx + crtC.sx - crtC.r <= 0){
+			crtC.sx = -crtC.sx;
+			if(crtC.cx + crtC.sx + crtC.r >= c_canvas.width){
+				crtC.cx = Math.min(c_canvas.width - crtC.r, crtC.cx);
+			}
+			else if(crtC.cx + crtC.sx - crtC.r <= 0){
+				crtC.cx = crtC.r;
+			}
+		}
+		if(crtC.cy + crtC.sy + crtC.r >= c_canvas.height  || crtC.cy + crtC.sy - crtC.r <= 0){
+			crtC.sy = -crtC.sy;
+			if(crtC.cy + crtC.sy + crtC.r >= c_canvas.height){
+				crtC.cy = Math.min(c_canvas.height - crtC.r, crtC.cy);
+			}
+			else if(crtC.cy + crtC.sy - crtC.r <= 0){
+				crtC.cy = crtC.r;
+			}
+		}
+		
+		var remove = false;
+		
+		
+		for(var j = 0; j<l; j++){
+			if(j != i){
+				
+				var oc = circles[j];
+				var otherArea = getCircleArea(oc);
+				
+				
+				if(Math.sqrt(Math.abs(crtC.cx - oc.cx)*Math.abs(crtC.cx - oc.cx) + Math.abs(crtC.cy - oc.cy)*Math.abs(crtC.cy - oc.cy)) <= (crtC.r + oc.r)){
+					
+					if(crtC.color == oc.color){
+						
+						circles[j].markdelete = true;
+						crtC.r = crtC.r+oc.r;
+						
+					}
+					
+					var sx1 = crtC.sx;
+					var sy1 = crtC.sy;
+					var sx2 = oc.sx;
+					var sy2 = oc.sy;
+					
+					
+					
+					
+					if(crtC.color != "rgba(0, 0, 0, "+opacity+")"){
+						
+						circles[j].sx = (sx2 * (oc.r-crtC.r) 		+ 2 * crtC.r 	* sx1) / (crtC.r + oc.r);
+						circles[j].sy = (sy2 * (oc.r-crtC.r) 		+ 2 * crtC.r 	* sy1) / (crtC.r + oc.r);
+						
+						crtC.sx 	= 	(sx1 * (crtC.r - oc.r) 	+ 2 * oc.r	* sx2) / (crtC.r + oc.r);
+						crtC.sy 	= 	(sy1 * (crtC.r - oc.r) 	+ 2 * oc.r	* sy2) / (crtC.r + oc.r);
+						
+						
+						
+					}
+					else{
+						circles[j].markdelete = true;
+					}
+					
+					if(oc.color == "rgba(0, 0, 0, "+opacity+")"){
+						remove = true;
+						
+						circles[j].sx = sx2;
+						circles[j].sy = sy2;
+					}
+					
+					if(crtC.cx > oc.cx){
+						
+						crtC.cx = Math.max(Math.sqrt((crtC.r + oc.r)*(crtC.r + oc.r) - (crtC.cy-oc.cy)*(crtC.cy-oc.cy)) - oc.cx , crtC.cx);
+					}
+					else{
+						
+						crtC.cx = Math.min(Math.sqrt((crtC.r + oc.r)*(crtC.r + oc.r) - (crtC.cy-oc.cy)*(crtC.cy-oc.cy)) + oc.cx , crtC.cx);
+						
+					}
+					
+					if(crtC.cy > oc.cy){
+					
+						crtC.cy = Math.min(Math.sqrt((crtC.r + oc.r)*(crtC.r + oc.r) - (crtC.cx-oc.cx)*(crtC.cx-oc.cx)) + oc.cy , crtC.cy);
+					}
+					else{
+						
+						crtC.cy = Math.min(Math.sqrt((crtC.r + oc.r)*(crtC.r + oc.r) - (crtC.cx-oc.cx)*(crtC.cx-oc.cx)) + oc.cy , crtC.cy);
+					}
+					
+					
+					while(Math.sqrt(Math.abs(crtC.cx - oc.cx)*Math.abs(crtC.cx - oc.cx) + Math.abs(crtC.cy - oc.cy)*Math.abs(crtC.cy - oc.cy)) <= (crtC.r + oc.r)){
+						if(crtC.cx > oc.cx){
+							crtC.cx = crtC.cx + 1;
+						}
+						else{
+							crtC.cx = crtC.cx - 1;
+						}
+					}
+					
+					
+				}
+				
+				
+			}
+			
+			
+			if(crtC.color == "rgba(0, 0, 0, "+opacity+")" && crtC.birth + blackLife <= timer){
+				remove = true;
+			}
+			if(crtC.color == "rgba(0, 0, 0, "+opacity+")"){
+				crtC.r = crtC.r - crtC.r/10000;
+			}
+		}
+		
+		
+		
+		if(vortex.isAlive){
+		
+			if(crtC.cx >= vortex.x){
+				crtC.sx = crtC.sx - vortex.a / Math.sqrt((vortex.x - crtC.cx)* (vortex.x - crtC.cx) + (vortex.y - crtC.cy)* (vortex.y - crtC.cy));
+				
+			}
+			else{
+				crtC.sx = crtC.sx + vortex.a / Math.sqrt((vortex.x - crtC.cx)* (vortex.x - crtC.cx) + (vortex.y - crtC.cy)* (vortex.y - crtC.cy));
+				
+			}
+			
+			if(crtC.cy >= vortex.y){
+				crtC.sy = crtC.sy - vortex.a  / Math.sqrt((vortex.x - crtC.cx)* (vortex.x - crtC.cx) + (vortex.y - crtC.cy)* (vortex.y - crtC.cy));
+			}
+			else{
+				crtC.sy = crtC.sy + vortex.a  / Math.sqrt((vortex.x - crtC.cx)* (vortex.x - crtC.cx) + (vortex.y - crtC.cy)* (vortex.y - crtC.cy));
+			}
+			
+			
+			if(crtC.cx + crtC.r > vortex.x && crtC.cx + crtC.r < vortex.x + 50 && crtC.cy + crtC.r > vortex.y && crtC.cy + crtC.r < vortex.y + 50){
+				crtC.r = crtC.r/1.5;
+				
+			}
+		}
+		if(crtC.r < 1){
+			remove = true;
+		}
+		
+		
+		
+		if(!remove && !crtC.markdelete){
+			var nCircle = new circle(crtC.cx + crtC.sx, crtC.cy + crtC.sy, crtC.r, crtC.sx, crtC.sy, crtC.color, crtC.birth);
+			
+			newCicles.push(nCircle);
+		}
+		
+		
+	}
+	
+	circles = newCicles;
+	
+	var percent = totalArea / (c_canvas.width * c_canvas.height);
+	$('#area').text(percent*100);
+	if(percent>0.50){
+		stop = true;
+	}
+	*/
+}
+
+
+var circle= function(cx,cy,r, sx, sy, color, birth) {
+	this.cx=cx;
+	this.cy=cy;
+	this.r=r;
+	this.sx=sx;
+	this.sy=sy;
+	this.color = color;
+	this.birth = birth;
+};
+
+
+
+
+
+function getRandomColor(mayBeBlack) {
+	var rnd = Math.floor((Math.random()*10)+1);
+			
+		colors = ["rgba(153, 0, 0, "+opacity+")",
+			"rgba(204, 51, 0, "+opacity+")",
+			"rgba(255, 204, 0, "+opacity+")",
+			"rgba(0, 153, 0, "+opacity+")",
+			"rgba(0, 102, 102, "+opacity+")",
+			"rgba(0, 102, 255, "+opacity+")",
+			"rgba(0, 0, 204, "+opacity+")",
+			"rgba(102, 51, 153, "+opacity+")",
+			"rgba(204, 0, 153, "+opacity+")",
+			"rgba(0, 0, 0, "+opacity+")",
+			"rgba(204, 51, 0, "+opacity+")",
+			"rgba(255, 204, 0, "+opacity+")",
+			"rgba(0, 153, 0, "+opacity+")",
+			"rgba(0, 102, 102, "+opacity+")",
+			"rgba(0, 102, 255, "+opacity+")",
+			"rgba(0, 0, 204, "+opacity+")",
+			"rgba(102, 51, 153, "+opacity+")",
+			"rgba(204, 0, 153, "+opacity+")",
+			"rgba(102, 204, 255, "+opacity+")"
+			
+			];
+			
+			
+	var selected = colors[rnd];
+	
+	if(!mayBeBlack){
+		if(selected == "rgba(0, 0, 0, "+opacity+")"){
+			selected = getRandomColor(mayBeBlack);
+		}
+	}
+			
+	return selected;
+}
+
+function getRandomX() {
+	var c_canvas = document.getElementById("c");
+	var cw = c_canvas.width;
+	var rnd = Math.floor(((Math.random())) * cw);
+	return rnd;
+}
+function getRandomY() {
+	var c_canvas = document.getElementById("c");
+	var ch = c_canvas.height;
+	var rnd = Math.floor(((Math.random())) * ch);
+	return rnd;
+}
+function getRandomRadius() {
+
+}
+
+
+function animate() {
+	if(!stop){
+		drawCircles();
+		$('#log').text(timer/1000);
+	}
+	else{
+		alert("GAME OVER");
+		clearInterval(refreshIntervalId);
+	}
+	
+}
+
+function generateNewCircle(spawnBlackBalls, x, y) {
+	var newx = getRandomX();
+	var newy = getRandomY();
+	if(x){
+		newx = x;
+	}
+	if(y){
+		newy = y;
+	}
+	generatedBoubbles++;
+	return new circle(newx, newy, 15, getRandomSpeed(), getRandomSpeed(), getRandomColor(spawnBlackBalls), timer)
+}
+
+function getCircleArea(c) {
+	return Math.PI * c.r * c.r;
+}
+
+</script>
+
+</body>
+
+</html> 

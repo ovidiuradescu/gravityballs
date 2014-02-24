@@ -1,0 +1,290 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Title of the document</title>
+<script src="jquery-1.3.1.js"></script>
+<style>
+#log{ padding: 20px; background: #fefefe;}
+#c{margin: 0 auto;}
+.CanvasDiv{
+	margin-right: 200px;
+}
+.InfoDiv{
+	width: 200px;
+	float: right;
+}
+.clear{
+	clear: both;
+}
+</style>
+</head>
+
+<body>
+<div>
+	<div class="InfoDiv">
+		<div><span>Generated Bubbles </span><span id="AllBoubbles"></span></div>
+		<div><span>Active Bubbles </span><span id="ActiveBoubbles"></span></div>
+		<div><span>Next vortex in </span><span id="NextVortex"></span></div>
+	</div>
+	<div class="CanvasDiv">
+		<canvas width="1600" height="1600" id="c" ></canvas>
+		<a href="javascript: drawCanvas()">draw</a>
+		<a href="javascript: resetCanvas()">erase</a>
+	</div>
+	
+	<div class="clear"></div>
+</div>
+ <div id="noOfCirclesDbg"></div>
+ <div id="log"></div>
+ <div id="area"></div>
+ <div id="vordbg"></div>
+ 
+
+
+ 
+<script type="text/javascript">
+
+var TO_RADIANS = Math.PI/180; 
+var G_Constant = 6.674 * Math.pow(10, -11);// N
+var circles = [];
+var step = 1000 / 60;
+var timer = 0;
+var blackLife = 12000;
+var vortexWait = 15000;
+var stop = false;
+var refreshIntervalId;
+var lastGeneratedOn = timer;
+var spawnInterval = 500;
+var generatedBoubbles = 0;
+var spawnBlackBalls = false;
+
+var opacity = 1;
+
+var Ball = new Image();
+Ball.src = 'images/ball.png';
+
+var CelestianBody = function(x, y, ax, ay, mass, radius, color) {
+	this.x = x;
+	this.y = y;
+	this.ax = ax;
+	this.ay = ay;
+	this.m = mass;
+	this.r = radius;
+	this.color = color;
+};
+						//		x	,y		,ax	,ay			,mass		,radius	,color
+var sun = new CelestianBody(	800	,800	,0	,0			,1200000000	,20		,"rgba(255, 204, 0, "+opacity+")");
+var earth = new CelestianBody(	550	,800	,0	,-0.001		,15000000		,10		,"rgba(0, 0, 204, "+opacity+")");
+var moon = new CelestianBody(	535	,800	,0	,-0.0015	,50		,3		,"rgba(0, 102, 102, "+opacity+")");
+var venus = new CelestianBody(	1200	,800	,0	,0.001		,14000000		,8		,"rgba(204, 51, 0, "+opacity+")");
+var mars = new CelestianBody(	1150	,800	,0	,0.0008	,5000000		,5		,"rgba(204, 51, 0, "+opacity+")");
+
+function drawCanvas() {
+	circles.push(sun);
+	circles.push(earth);
+	circles.push(moon);
+	circles.push(venus);
+	circles.push(mars);
+	
+	refreshIntervalId = self.setInterval(function(){animate()},step);
+}
+function resetCanvas() {
+	var c_canvas = document.getElementById("c");
+	c_canvas.width = c_canvas.width;
+}
+function clickCanvas() {
+	//alert();
+}
+$('#c').bind('click',function(e) { 
+	var p = $("#c");
+	var offset = p.offset();
+	var mouseX = e.pageX - offset.left;
+	var mouseY = e.pageY - offset.top;
+	
+	handleClick(mouseX, mouseY);
+
+	$("#log").text("mouseX: " + mouseX + ", mouseY: " + mouseY);
+});
+
+function handleClick(x,y) {
+	var l = circles.length;
+	console.log(circles);
+}
+
+	
+function drawCircles() {
+	timer = timer + step;
+	var c_canvas = document.getElementById("c");	
+	var context = c_canvas.getContext("2d");
+	context.clearRect(0, 0, c_canvas.width, c_canvas.height);
+	
+	context.beginPath();
+	context.moveTo(c_canvas.width/2,0);
+	context.lineTo(c_canvas.width/2,c_canvas.height);
+	context.stroke();
+	context.beginPath();
+	context.moveTo(0,c_canvas.height/2);
+	context.lineTo(c_canvas.width,c_canvas.height/2);
+	context.stroke();
+	
+	var l = circles.length;
+	
+	var newCicles = new Array();
+	
+	var splice = new Array();
+	
+	var otherCicles = new Array();
+	
+	var totalArea = 0;
+	//console.log(circles);
+	
+	for (var i = 0; i< l; i++){
+		context.beginPath();
+		context.arc(circles[i].x, circles[i].y, circles[i].r, 0, 2 * Math.PI, false);
+		context.fillStyle = circles[i].color;
+		context.fill();
+		context.drawImage(Ball, circles[i].x - circles[i].r, circles[i].y - circles[i].r, circles[i].r * 2, circles[i].r * 2);
+	
+		var crtC = circles[i];
+		
+		for(var j = 0; j<l; j++){
+			if(j != i){				
+				var oc = circles[j];
+				var distance = getDistance(circles[i], circles[j]);
+				var gForce = getGForce(circles[i], circles[j]);
+				var gA = getGa(gForce, circles[i].m);
+				var alpha = getAlpha(circles[i], circles[j]);
+				
+				crtC.ax = crtC.ax + gA * Math.cos(alpha);
+				crtC.ay = crtC.ay + gA * Math.sin(alpha);
+				
+				
+				//console.log(distance + " " + gForce + " " + gA + " " + alpha);
+				
+				
+				
+			}
+		}
+		
+		//var nCircle = new CelestianBody(crtC.x + crtC.sx, crtC.y + crtC.sy, crtC.sx, crtC.sy, crtC.m, crtC.r, crtC.color);
+		
+		crtC.x = crtC.x + crtC.ax*step*step;
+		crtC.y = crtC.y + crtC.ay*step*step;
+			
+		//newCicles.push(nCircle);
+		
+		
+		
+	}
+	
+	//circles = newCicles;
+	
+	
+}
+function getAlpha(CelestianBody1, CelestianBody2){
+	return Math.atan2(CelestianBody2.y - CelestianBody1.y, CelestianBody2.x - CelestianBody1.x);
+	
+}
+
+function getGa(force, mass){
+	return force/mass;
+}
+function getGForce(CelestianBody1, CelestianBody2){
+	//G*m1*m2/squ(r)
+	var rr = getDistance(CelestianBody1, CelestianBody2);
+	
+	return (G_Constant * CelestianBody1.m * CelestianBody2.m) / (rr * rr);
+}
+
+function getDistance(CelestianBody1, CelestianBody2){
+	return Math.sqrt((CelestianBody1.x - CelestianBody2.x) * (CelestianBody1.x - CelestianBody2.x) + (CelestianBody1.y - CelestianBody2.y) * (CelestianBody1.y - CelestianBody2.y));
+}
+
+function getRandomColor(mayBeBlack) {
+	var rnd = Math.floor((Math.random()*10)+1);
+			
+		colors = ["rgba(153, 0, 0, "+opacity+")",
+			"rgba(204, 51, 0, "+opacity+")", //redish
+			"rgba(255, 204, 0, "+opacity+")",
+			"rgba(0, 153, 0, "+opacity+")",
+			"rgba(0, 102, 102, "+opacity+")", //greenish
+			"rgba(0, 102, 255, "+opacity+")",
+			"rgba(0, 0, 204, "+opacity+")", //blue
+			"rgba(102, 51, 153, "+opacity+")", //violet
+			"rgba(204, 0, 153, "+opacity+")",//pinkish
+			"rgba(0, 0, 0, "+opacity+")",
+			"rgba(204, 51, 0, "+opacity+")", //pinkish
+			"rgba(255, 204, 0, "+opacity+")", //yellow
+			"rgba(0, 153, 0, "+opacity+")",
+			"rgba(0, 102, 102, "+opacity+")",
+			"rgba(0, 102, 255, "+opacity+")",
+			"rgba(0, 0, 204, "+opacity+")",
+			"rgba(102, 51, 153, "+opacity+")",
+			"rgba(204, 0, 153, "+opacity+")",
+			"rgba(102, 204, 255, "+opacity+")" //bleu
+			
+			];
+			
+			
+	var selected = colors[rnd];
+	
+	if(!mayBeBlack){
+		if(selected == "rgba(0, 0, 0, "+opacity+")"){
+			selected = getRandomColor(mayBeBlack);
+		}
+	}
+			
+	return selected;
+}
+
+function getRandomX() {
+	var c_canvas = document.getElementById("c");
+	var cw = c_canvas.width;
+	var rnd = Math.floor(((Math.random())) * cw);
+	return rnd;
+}
+function getRandomY() {
+	var c_canvas = document.getElementById("c");
+	var ch = c_canvas.height;
+	var rnd = Math.floor(((Math.random())) * ch);
+	return rnd;
+}
+function getRandomRadius() {
+
+}
+
+
+function animate() {
+	if(!stop){
+		drawCircles();
+		$('#log').text(timer/1000);
+	}
+	else{
+		alert("GAME OVER");
+		clearInterval(refreshIntervalId);
+	}
+	
+}
+
+function generateNewCircle(spawnBlackBalls, x, y) {
+	var newx = getRandomX();
+	var newy = getRandomY();
+	if(x){
+		newx = x;
+	}
+	if(y){
+		newy = y;
+	}
+	generatedBoubbles++;
+	return new circle(newx, newy, 15, getRandomSpeed(), getRandomSpeed(), getRandomColor(spawnBlackBalls), timer)
+}
+
+function getCircleArea(c) {
+	return Math.PI * c.r * c.r;
+}
+
+</script>
+
+</body>
+
+</html>
